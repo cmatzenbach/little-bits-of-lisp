@@ -34,18 +34,19 @@
 
 (defun load-db (filename)
   (with-open-file (in filename)
-    (with-standard-io-syntax
-      (setf *db* (read in)))))
+	(with-standard-io-syntax
+	  (setf *db* (read in)))))
 
-(defun select-by-artist (item)
+(defun select-by-artist (artist)
   (remove-if-not
-   #'(lambda (i) (equal (getf i :artist) "Radiohead"))
+   #'(lambda (i) (equal (getf i :artist) artist))
    *db*))
 
 ;; generic selector function
 (defun select (selector-fn)
   (remove-if-not selector-fn *db*))
 
+;; cl implementation of sql'where'
 (defun where (&key title artist rating (ripped nil ripped-p))
   #'(lambda (cd)
       (and
@@ -53,6 +54,20 @@
        (if artist (equal (getf cd :artist) artist) t)
        (if rating (equal (getf cd :rating) rating) t)
        (if ripped-p (equal (getf cd :ripped) ripped) t))))
+
+;; generate the comparison string for each passed in field and value
+(defun make-comp-str (field value)
+  `(equal (getf cd ,field) ,value))
+
+;; make a list of all the comparison string to be evaluated
+(defun make-comp-list (fields)
+  (loop while fields
+     collecting (make-comp-str (pop fields) (pop fields))))
+
+;; macro version of where, passes args to make-comp-list and splices with ,@
+(defmacro new-where (&rest clauses)
+  `#'(lambda (cd) (and ,@(make-comp-list clauses))))
+
 
 (defun update (selector-fn &key title artist rating (ripped nil ripped-p))
   (setf *db*
